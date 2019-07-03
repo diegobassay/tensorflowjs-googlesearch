@@ -1,2 +1,2 @@
 # tensorflowjs-googlesearch
-Desmonstração de como usar o TensorflowJS para fazer pesquisas no Google
+Demonstração de como usar o TensorflowJS para fazer pesquisas no Google
