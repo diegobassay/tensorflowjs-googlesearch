@@ -6,6 +6,7 @@ import jpeg from "jpeg-js"
 import * as tfjsnode from "@tensorflow/tfjs-node"
 import { IMAGENET_CLASSES } from "./imagenet_classes";
 
+
 const PATH_MODEL = 'http://localhost:8081/vgg19/model.json'
 const IMAGE_TO_PREDICT = __dirname + '/static/img/beijaflor.jpg'
 
@@ -56,17 +57,23 @@ const predictingImage = async (path) => {
  * @param {function} callback  - Função de callback
  */
 const startServer = async (callback) => {
-  dotenv.config()
-  const port = process.env.SERVER_PORT
-  const app = express()
-  app.use(express.json())
-  app.set("views", path.join( __dirname, "views"))
-  app.set("view engine", "ejs")
-  app.use(express.static( path.join( __dirname, "static")))
+    dotenv.config()
+    const port = process.env.SERVER_PORT
+    const app = express()
+    const router = express.Router();
+    
+    router.get('/', async function (req, res) {
+        await res.render('index');
+    });
 
-  app.listen(port, () => {
-    callback(port)
-  });
+    app.use(express.json())
+    app.set("views", path.join( __dirname, "views"))
+    app.set("view engine", "ejs")
+    app.use(express.static( path.join( __dirname, "static")))
+    app.use('/', router);
+    app.listen(port, () => {
+        callback(port)
+    });
 }
 
 startServer((port)=>{
