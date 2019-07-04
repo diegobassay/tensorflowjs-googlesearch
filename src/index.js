@@ -3,11 +3,11 @@ import express from "express"
 import path from "path"
 import fs from "fs"
 import jpeg from "jpeg-js"
-//import * as tfjs from '@tensorflow/tfjs';
-import * as tfjsnode from '@tensorflow/tfjs-node'
+import * as tfjsnode from "@tensorflow/tfjs-node"
+import { IMAGENET_CLASSES } from "./imagenet_classes";
 
-const PATH_MODEL = 'http://localhost:8081/mobilenet/model.json'
-const IMAGE_TO_PREDICT = __dirname + '/static/img/pizza.jpg'
+const PATH_MODEL = 'http://localhost:8081/vgg19/model.json'
+const IMAGE_TO_PREDICT = __dirname + '/static/img/beijaflor.jpg'
 
 /**
  * Detalha as camadas disponiveis no modelo de rede neural carregado.
@@ -22,7 +22,7 @@ const showNeuralNetWorkSummary = async () => {
  * @param {*} path - Caminho pra imagem que será usada na predição
  */
 const predictingImage = async (path) => {
-  const numberOfChannels = 4
+  const numberOfChannels = 3
   const buffer = fs.readFileSync(path)
   const image = jpeg.decode(buffer, true)
   const pixels = image.data
@@ -35,15 +35,21 @@ const predictingImage = async (path) => {
     }
   }
 
-  const outShape = [image.height, image.width, numberOfChannels]
-  const input = tfjsnode.tensor3d(values, outShape, 'int32')
-  input.shape.push(1)
+  const arrayShape = [1, image.height, image.width, numberOfChannels]
+  const inputTensor = tfjsnode.tensor(values, arrayShape, "int32")
   const model = await tfjsnode.loadLayersModel(PATH_MODEL)
-  //console.log(model);
-  //@TODO - ajustar a camada de input_1 para outshape correto
-  model.predict(input);
-}
+  let predictions = model.predict(inputTensor).dataSync();
 
+  let mappedProbalities = Array.from(predictions).map((p,i) => {
+        return { probability: p, class: IMAGENET_CLASSES[i] };
+  });
+
+  let sortedProbalities = mappedProbalities.sort(function(a,b){
+        return b.probability-a.probability;
+  });
+
+  console.log(sortedProbalities.slice(0,5));
+}
 /**
  * Inicia o servidor para upload de imagens
  * @todo necessário configurar o middleware para receber upload e terminar rota para template ejs.
@@ -61,11 +67,10 @@ const startServer = async (callback) => {
   app.listen(port, () => {
     callback(port)
   });
-
 }
 
 startServer((port)=>{
   console.log(`Servidor na url : http://localhost:${port}`)
-  showNeuralNetWorkSummary()
+  //showNeuralNetWorkSummary()
   predictingImage(IMAGE_TO_PREDICT)
 })
