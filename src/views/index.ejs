@@ -3,9 +3,28 @@
 <head>
     <meta charset="utf-8" />
     <meta http-equiv="X-UA-Compatible" content="IE=edge">
-    <title>Tutorial Tensorflow TypeScript</title>
+    <title>TensorflowJS - Image Prediction</title>
+    <style>
+        body { max-width: 500px; margin: auto;}
+        img, pre { width: 500px; height: auto; }
+        pre { overflow:auto; border:1px solid #333333; background-color: #CCCCCC; display: block;}
+    </style>
 </head>
 <body>
-
-</body>
+    <h1>TensorflowJS - Image Prediction</h1>
+    <%if (!image) { %>
+        <h2>Choose image to predict</h2>
+    <% } else {%>
+        <h2>Showing tensorflow predictions</h2>
+    <% } %>
+    <form action="/upload" method="post" enctype="multipart/form-data">
+        <input type="file" accept=".bmp,.png,.jpg,.jpeg" name="photo" />
+        <input type="submit" value="upload"/>
+    </form>
+    <hr/>
+    <%if (image) { %>
+        <img src="data:<%= image.mimetype %>;base64, <%= image.data %>" />
+        <pre id="json"><%= image.predicitions %></pre>
+    <% } %>
+    </body>
 </html>
