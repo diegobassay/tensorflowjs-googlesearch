@@ -49,13 +49,13 @@ const decodeImage = (path, mimetype) => {
         image = bmp.decode(buffer)
         break;
       default:
-          reject('error loading image')
+        reject('error loading image')
     }
     resolve(image.data)
   });
 }
 /**
- * Converte a matrix de com informações da imagem para 3 canais RGB (Int32Array).
+ * Converte a matrix com informações da imagem para 3 canais RGB (Int32Array).
  * @param {Array} rgbaDataImage 
  */
 const convertImageToRGB = async (rgbaDataImage) => {
