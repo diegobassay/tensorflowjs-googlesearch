@@ -14,8 +14,6 @@
     <h1>TensorflowJS - Image Prediction</h1>
     <%if (!image) { %>
         <h2>Choose image to predict</h2>
-    <% } else {%>
-        <h2>Showing tensorflow predictions</h2>
     <% } %>
     <form action="/upload" method="post" enctype="multipart/form-data">
         <input type="file" accept=".bmp,.png,.jpg,.jpeg" name="photo" />
@@ -24,7 +22,10 @@
     <hr/>
     <%if (image) { %>
         <img src="data:<%= image.mimetype %>;base64, <%= image.data %>" />
+        <h2>Tensorflow predictions:</h2>
         <pre id="json"><%= image.predicitions %></pre>
+        <h2>Google results:</h2>
+        <pre id="json"><%= image.results %></pre>
     <% } %>
     </body>
 </html>
