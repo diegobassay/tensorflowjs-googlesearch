@@ -12,7 +12,8 @@
 </head>
 <body>
     <h1>TensorflowJS - Image Prediction</h1>
-    <%if (!image) { %>
+    
+    <%if (typeof image !== 'undefined') { %>
         <h2>Choose image to predict</h2>
     <% } %>
     <form action="/upload" method="post" enctype="multipart/form-data">
@@ -20,12 +21,15 @@
         <input type="submit" value="upload"/>
     </form>
     <hr/>
-    <%if (image) { %>
+    <%if (typeof image !== 'undefined') { %>
         <img src="data:<%= image.mimetype %>;base64, <%= image.data %>" />
         <h2>Tensorflow predictions:</h2>
         <pre id="json"><%= image.predicitions %></pre>
         <h2>Google results:</h2>
         <pre id="json"><%= image.results %></pre>
+    <% } %>
+    <%if (typeof error !== 'undefined') { %>
+        <pre id="json" style="color:red"><%= error %></pre>
     <% } %>
     </body>
 </html>

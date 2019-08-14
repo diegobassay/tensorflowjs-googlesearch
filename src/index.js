@@ -15,14 +15,14 @@ import fs from 'fs'
 
 dotenv.config()
 
-const {WIDTH_IMG, HEIGHT_IMG, NUM_OF_CHANNELS_RGB, NUM_OF_CHANNELS_RGBA, SERVER_PORT, GOOGLE_KEY, GOOGLE_CX} = process.env;
+const {WIDTH_IMG, HEIGHT_IMG, NUM_OF_CHANNELS_RGB, NUM_OF_CHANNELS_RGBA, SERVER_PORT, GOOGLE_KEY, GOOGLE_CX, MAX_SHOW_PREDICTIONS} = process.env;
 const PATH_MODEL = `http://localhost:${SERVER_PORT}/vgg19/model.json`
 const GOOGLE_SEARCH_URL = `https://www.googleapis.com/customsearch/v1?key=${GOOGLE_KEY}&cx=${GOOGLE_CX}&q=`
 
 /**
  * Detalha as camadas disponiveis no modelo de rede neural carregado.
  */
-const showNeuralNetWorkSummary = async () => {
+const showNeuralNetworkSummary = async () => {
 	const currentModel = await tfjsnode.loadLayersModel(PATH_MODEL)
 	currentModel.summary();
 }
@@ -33,9 +33,10 @@ const showNeuralNetWorkSummary = async () => {
  * @param {*} mimetype - Formato da imagem
  * @returns {Promise}
  */
-const decodeImage = (path, mimetype) => {
+const decodeImage = async (path, mimetype) => {
 
   return new Promise((resolve, reject) => {
+    //reject('error loading image')
     const buffer = fs.readFileSync(path)
     let image
     switch (mimetype) {
@@ -80,24 +81,27 @@ const convertImageToRGB = async (rgbaDataImage) => {
  * @param {*} dataImage - Data array que representa a imagem escolhida.
  * @returns {Promise}
  */
-const predictingImage = async (rgbDataImage) => {
+const predictingImageOnTensorflow = async (rgbDataImage) => {
 
-  return new Promise(async (resolve) => {
-    const tensorArrayShape = [1, Number(HEIGHT_IMG), Number(WIDTH_IMG), Number(NUM_OF_CHANNELS_RGB)]
-    //tfjsnode.tensor([1, 2, 3, 4]).print();
-    let inputTensor = tfjsnode.tensor(rgbDataImage, tensorArrayShape, 'int32')
-    let model = await tfjsnode.loadLayersModel(PATH_MODEL)
-    inputTensor.print();
-    let predictions = model.predict(inputTensor).dataSync()
-
-    let mappedProbalities = Array.from(predictions).map((p,i) => {
-          return { probability: p, class: IMAGENET_CLASSES[i] };
-    });
-
-    let sortedProbalities = mappedProbalities.sort((a,b) => {
-          return b.probability-a.probability;
-    });
-    resolve(sortedProbalities.slice(0,5));
+  return new Promise(async (resolve, reject) => {
+    try {
+      const tensorArrayShape = [null, Number(HEIGHT_IMG), Number(WIDTH_IMG), Number(NUM_OF_CHANNELS_RGB)]
+      let inputTensor = tfjsnode.tensor(rgbDataImage, tensorArrayShape, 'int32')
+      let model = await tfjsnode.loadLayersModel(PATH_MODEL)
+      inputTensor.print();
+      let predictions = model.predict(inputTensor).dataSync()
+  
+      let mappedProbalities = Array.from(predictions).map((p,i) => {
+            return { probability: p, class: IMAGENET_CLASSES[i] };
+      });
+  
+      let sortedProbalities = mappedProbalities.sort((a,b) => {
+            return b.probability-a.probability;
+      });
+      resolve(sortedProbalities.slice(0, Number(MAX_SHOW_PREDICTIONS)));
+    } catch (error) {
+      reject(error)
+    }
   });
 }
 
@@ -106,21 +110,29 @@ const predictingImage = async (rgbDataImage) => {
  * @param {*} query - Termo que será usado para pesquisa no Google.
  * @returns {Promise}
  */
-const searchingOnGoogle = (query) => {
+const searchingForResultsOnGoogle = async (query) => {
 
-  return new Promise(async (resolve) => {
-    let url = GOOGLE_SEARCH_URL+query
-    https.get(url, res => {
-      res.setEncoding('utf8');
-      let body = '';
-      res.on('data', data => {
-        body += data;
+  return new Promise(async (resolve, reject) => {
+    try {
+      let url = GOOGLE_SEARCH_URL+query
+      const req = https.get(url, res => {
+        res.setEncoding('utf8');
+        let body = '';
+        res.on('data', data => {
+          body += data;
+        });
+        res.on('end', () => {
+          body = JSON.parse(body);
+          resolve(body.items)
+        });
       });
-      res.on('end', () => {
-        body = JSON.parse(body);
-        resolve(body.items)
-      });
-    });
+      req.on('error', error => {
+        reject(error)
+      })
+      req.end()      
+    } catch (error) {
+      reject(error)
+    }
   });
 }
 
@@ -144,6 +156,37 @@ const startServer = async () => {
   });
 }
 
+
+const processingRequestImage = async (image, mimetype, buffer) => {
+
+  return new Promise(async (resolve, reject) => {
+    jimp.read(buffer).then(img => {
+      img.resize(Number(WIDTH_IMG), Number(HEIGHT_IMG)).writeAsync(image).then(() => {
+        decodeImage(image, mimetype).then(dataImage => {
+          convertImageToRGB(dataImage).then(rgbDataImage => {
+            predictingImageOnTensorflow(rgbDataImage).then(predictions => {
+              const [firstprediction] = predictions;
+              searchingForResultsOnGoogle(firstprediction.class).then(results => {
+                resolve({ image: { 
+                  data: buffer.toString('base64'), 
+                  mimetype: mimetype,
+                  predicitions: JSON.stringify(predictions, undefined, 2),
+                  results: JSON.stringify(results, undefined, 2)
+                  }
+                })
+              }).catch(e => reject(`searchingForResultsOnGoogle : ${e}`))
+            }).catch(e => reject(`predictingImageOnTensorflow : ${e}`))
+          }).catch(e => reject(`convertImageToRGB : ${e}`))
+        }).catch(e => reject(`decodeImage : ${e}`))
+      }).catch(e => reject(`resize : ${e}`))
+    }).catch(e => reject(`read : ${e}`))
+    .catch(err => {
+      reject(`genericError : ${err}`)
+    });
+  });
+
+}
+
 /**
  * Contem as regras que serão executadas a cada requisição.
  * @param {*} app 
@@ -151,42 +194,29 @@ const startServer = async () => {
 const buildRouter = (app) => {
 
   app.get('*', (req, res) => {
-      res.render('index', {image: undefined})
+      res.render('index')
   });
 
   app.post('/upload', multer().single('photo'), (req, res) => {
     if(req.file) {
-      let filename = uuidv4() + '.' +req.file.originalname.split('.').pop()
-      let imagepath = __dirname + '/static/img/'+filename
-      jimp.read(req.file.buffer).then(img => {
-        img.resize(Number(WIDTH_IMG), Number(HEIGHT_IMG)).writeAsync(imagepath).then(() => {
-          decodeImage(imagepath, req.file.mimetype).then(dataImage => {
-            convertImageToRGB(dataImage).then(rgbDataImage => {
-              predictingImage(rgbDataImage).then(predictions => {
-                const [firstprediction] = predictions;
-                searchingOnGoogle(firstprediction.class).then(results => {
-                  res.render('index', { image: { 
-                    data: req.file.buffer.toString('base64'), 
-                    mimetype: req.file.mimetype,
-                    predicitions: JSON.stringify(predictions, undefined, 2),
-                    results: JSON.stringify(results, undefined, 2)
-                    }
-                  })
-                })
-              })
-            })
-          })
-        })
+      
+      let imagefullpath = `${__dirname}/static/img/${uuidv4()}.${req.file.originalname.split('.').pop()}`
+      let mimetype = req.file.mimetype
+      let buffer = req.file.buffer
+
+      processingRequestImage(imagefullpath, mimetype, buffer)
+      .then(result => {
+        res.render('index', result)
       })
-      .catch(err => {
-        console.error(err)
-      });
+      .catch(e => { 
+        res.render('index', {error: e})
+      })
     }
-    else throw 'error upload';
+    else res.render('index', {error: 'error upload'});
   });
 }
 
 startServer().then(port => {
   console.log(`Servidor na url : http://localhost:${port}`)
-  //showNeuralNetWorkSummary()
+  //showNeuralNetworkSummary()
 })
