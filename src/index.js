@@ -36,7 +36,6 @@ const showNeuralNetworkSummary = async () => {
 const decodeImage = async (path, mimetype) => {
 
   return new Promise((resolve, reject) => {
-    //reject('error loading image')
     const buffer = fs.readFileSync(path)
     let image
     switch (mimetype) {
