@@ -156,7 +156,12 @@ const startServer = async () => {
   });
 }
 
-
+/**
+ * Processa a requisição e realizar as operações de upload, predição e busca.
+ * @param {*} image Caminho completo da imagem enviada via upload
+ * @param {*} mimetype Mimetype da imagem
+ * @param {*} buffer Buffer com conteúdo da imagem
+ */
 const processingRequestImage = async (image, mimetype, buffer) => {
 
   return new Promise(async (resolve, reject) => {
@@ -199,7 +204,7 @@ const buildRouter = (app) => {
 
   app.post('/upload', multer().single('photo'), (req, res) => {
     if(req.file) {
-      
+
       let imagefullpath = `${__dirname}/static/img/${uuidv4()}.${req.file.originalname.split('.').pop()}`
       let mimetype = req.file.mimetype
       let buffer = req.file.buffer
@@ -217,6 +222,6 @@ const buildRouter = (app) => {
 }
 
 startServer().then(port => {
-  console.log(`Servidor na url : http://localhost:${port}`)
-  //showNeuralNetworkSummary()
+  console.log(`server on  : http://localhost:${port}`)
+  showNeuralNetworkSummary()
 })
